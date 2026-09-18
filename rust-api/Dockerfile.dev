@@ -1,0 +1,18 @@
+# Rust 1.82 開発用イメージ (cargo-watchでホットリロード)
+FROM rust:1.82-slim
+
+ENV CARGO_TERM_COLOR=always \
+    CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config libasound2-dev curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && cargo install cargo-watch --locked
+
+WORKDIR /app
+
+# 先に依存だけ温めておく(任意)。初回は Cargo.toml だけコピー
+COPY Cargo.toml ./
+
+CMD ["cargo", "watch", "-w", "src", "-w", "tests", "-w", "Cargo.toml", "-x", "run"]
+EXPOSE 3001

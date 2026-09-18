@@ -1,0 +1,19 @@
+# Rust (APIサーバはバイナリのため Cargo.lock はコミットする)
+**/target/
+
+# Env
+.env
+.env.local
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Docker
+.docker/
+
+# Cubase / MIDI local memos
+*.mid

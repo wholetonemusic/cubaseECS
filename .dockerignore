@@ -1,0 +1,11 @@
+target/
+.git/
+.gitignore
+Dockerfile*
+docker-compose*.yml
+.env.local
+.vscode/
+.idea/
+docs/
+cubase-remote/
+opencode/

@@ -1,0 +1,26 @@
+services:
+  api:
+    build:
+      context: ./rust-api
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./rust-api:/app
+      # Windowsのtarget肥大化・権限問題を避けるなら名前付きボリューム推奨
+      - cargo-target:/app/target
+      - cargo-registry:/usr/local/cargo/registry
+    environment:
+      PORT: "3001"
+      MIDI_MODE: "mock"
+      RUST_LOG: "info"
+    command: cargo watch -w src -w tests -w Cargo.toml -x run
+
+  # 将来の音声UI用プレースホルダ (Phase 4)
+  # voice-ui:
+  #   image: node:20-slim
+  #   ports: ["3002:3002"]
+
+volumes:
+  cargo-target:
+  cargo-registry:
