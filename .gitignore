@@ -17,3 +17,6 @@ Thumbs.db
 
 # Cubase / MIDI local memos
 *.mid
+
+# Session handoff (local only, not shared)
+docs/handoff.md
