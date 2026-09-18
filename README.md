@@ -1,5 +1,7 @@
 # Cubase External Control System (cubaseECS)
 
+![CI](https://github.com/wholetonemusic/cubaseECS/actions/workflows/ci.yml/badge.svg)
+
 Control Cubase with natural language. This project exposes Cubase mixer, plugin,
 and transport operations as an external API so that a chat UI (OpenCode) can
 drive them through structured commands.

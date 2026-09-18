@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 
 /// SysExフォーマット: F0 7D <JSON bytes> F7
 /// 0x7D は教育・開発用途の非商用ID。JSONはUTF-8。

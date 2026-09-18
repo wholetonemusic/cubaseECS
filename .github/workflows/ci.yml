@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    container: rust:1.82-slim
+    defaults:
+      run:
+        working-directory: rust-api
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ALSA deps (midir/host-midi) + fmt/clippy
+        run: apt-get update && apt-get install -y --no-install-recommends pkg-config libasound2-dev && rm -rf /var/lib/apt/lists/* && rustup component add rustfmt clippy
+
+      - name: fmt
+        run: cargo fmt --all -- --check
+
+      - name: clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: test
+        run: cargo test
+
+      - name: check host-midi feature
+        run: cargo check --features host-midi

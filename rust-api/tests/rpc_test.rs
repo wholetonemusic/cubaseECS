@@ -23,7 +23,8 @@ async fn plugin_set_param_ok() {
 #[tokio::test]
 async fn command_exec_ok() {
     let d = Dispatcher::mock();
-    let req = json!({"jsonrpc":"2.0","method":"command.exec","params":{"id":"Transport_Play"},"id":3});
+    let req =
+        json!({"jsonrpc":"2.0","method":"command.exec","params":{"id":"Transport_Play"},"id":3});
     let resp = handle_rpc(req, &d).await.unwrap();
     assert_eq!(resp["result"]["ok"], true);
 }

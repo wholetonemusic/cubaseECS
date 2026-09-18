@@ -7,6 +7,7 @@ ENV CARGO_TERM_COLOR=always \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config libasound2-dev curl ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
+    && rustup component add rustfmt clippy \
     && cargo install cargo-watch --locked
 
 WORKDIR /app
