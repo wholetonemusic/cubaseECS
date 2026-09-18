@@ -99,14 +99,19 @@ are rejected at encode time; normalize track names to Latin script
 
 - `MIDI_MODE=mock` (default, used in Docker): `MockPort`, no hardware access.
 - `MIDI_MODE=host` + `cargo run --features host-midi` (host-native only):
-  `HostMidiPort` skeleton, real send/receive to be implemented in Phase 2.
+  `HostMidiPort` sends SysEx via midir (port name substring match on
+  `MIDI_PORT`, default `"loopMIDI Port"`) and waits for the Cubase SysEx
+  response correlated by JSON-RPC `id` (timeout via
+  `MIDI_RESPONSE_TIMEOUT_MS`, default 2000ms).
 
 ## Cubase setup (Phase 2)
 
-1. Copy `cubase-remote/CubaseECS.js` into the Cubase MIDI Remote scripts folder.
-2. Enable the script in Cubase's MIDI Remote Manager.
-3. Start the API on the host with `MIDI_MODE=host`.
-4. Send `command.exec / Transport_Play` to `POST http://localhost:3001/rpc`.
+1. Prepare a loopMIDI port whose name contains `loopMIDI Port`.
+2. Copy `cubase-remote/CubaseECS.js` into the Cubase MIDI Remote scripts folder.
+3. Enable `WholeTone / CubaseECS` in Cubase's MIDI Remote Manager.
+4. Start the API on the host with `MIDI_MODE=host`
+   (`cargo run --features host-midi`).
+5. Send `command.exec / Transport_Play` to `POST http://localhost:3001/rpc`.
 
 Details: `cubase-remote/README.md`.
 
@@ -130,7 +135,10 @@ translate user utterances into JSON-RPC commands sent to
 ## Roadmap
 
 - **Phase 1** (done): JSON-RPC DSL, `/rpc` + SysEx mock, Docker dev env, prompt/scaffold.
-- **Phase 2**: Cubase Remote script implementation, real MIDI send/receive,
-  `transport.play` / `mixer.set` / `plugin.set_param` verification.
+- **Phase 2** (done, needs on-site verification): Cubase Remote driver
+  implementation, real MIDI send/receive with id-correlated response wait,
+  `transport.play` / `mixer.set` / `plugin.set_param` via loopMIDI.
+  Remaining approximations: dB→0..1 amplitude-law conversion, plugin calls
+  require the target track to be selected.
 - **Phase 3**: error handling, `session.status`, chat-driven operation.
 - **Phase 4**: voice UI, auto-mix, presets, external integrations.

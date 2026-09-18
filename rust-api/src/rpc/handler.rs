@@ -29,7 +29,7 @@ pub async fn handle_rpc(req: Value, dispatcher: &Dispatcher) -> Result<Value, (S
                 (StatusCode::OK, serde_json::to_value(resp).unwrap())
             })?;
             let result = dispatcher
-                .dispatch("mixer.set", serde_json::to_value(&p).unwrap())
+                .dispatch("mixer.set", serde_json::to_value(&p).unwrap(), id.clone())
                 .await;
             Ok(serde_json::to_value(JsonRpcResponse::ok(id, result)).unwrap())
         }
@@ -44,7 +44,11 @@ pub async fn handle_rpc(req: Value, dispatcher: &Dispatcher) -> Result<Value, (S
                 (StatusCode::OK, serde_json::to_value(resp).unwrap())
             })?;
             let result = dispatcher
-                .dispatch("plugin.set_param", serde_json::to_value(&p).unwrap())
+                .dispatch(
+                    "plugin.set_param",
+                    serde_json::to_value(&p).unwrap(),
+                    id.clone(),
+                )
                 .await;
             Ok(serde_json::to_value(JsonRpcResponse::ok(id, result)).unwrap())
         }
@@ -59,12 +63,18 @@ pub async fn handle_rpc(req: Value, dispatcher: &Dispatcher) -> Result<Value, (S
                 (StatusCode::OK, serde_json::to_value(resp).unwrap())
             })?;
             let result = dispatcher
-                .dispatch("command.exec", serde_json::to_value(&p).unwrap())
+                .dispatch(
+                    "command.exec",
+                    serde_json::to_value(&p).unwrap(),
+                    id.clone(),
+                )
                 .await;
             Ok(serde_json::to_value(JsonRpcResponse::ok(id, result)).unwrap())
         }
         "session.status" => {
-            let result = dispatcher.dispatch("session.status", json!({})).await;
+            let result = dispatcher
+                .dispatch("session.status", json!({}), id.clone())
+                .await;
             Ok(serde_json::to_value(JsonRpcResponse::ok(id, result)).unwrap())
         }
         "" => {
