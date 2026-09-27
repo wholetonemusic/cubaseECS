@@ -32,6 +32,8 @@ examples, roadmap) and `docs/session-log.md` for the session history.
 | `rust-api/`     | Rust API server: `POST /rpc`, JSON-RPC dispatch, SysEx encode/decode |
 | `cubase-remote/`| Cubase MIDI Remote script stub + setup notes (Phase 2 target)    |
 | `opencode/`     | OpenCode prompt template (natural language to JSON-RPC)          |
+| `opencode/reference/` | Paraphrased starting points per topic (e.g. `vocal-main.md`) |
+| `opencode/presets/` | Send-ordered RPC calls per topic (e.g. `vocal-main.json`)      |
 | `docs/`         | Design doc and session log (Japanese)                            |
 | `docker-compose.yml` | Dev environment (hot reload via `cargo-watch`)              |
 
@@ -81,6 +83,7 @@ docker compose down
 | ----------------- | ------------------------------------------------------------- | ------------------------ |
 | `mixer.set`       | `{ track, param, value }`                                     | Mixer parameter change   |
 | `plugin.set_param`| `{ track, slot, plugin, param, value }`                       | Plugin parameter change  |
+| `send.set`        | `{ track, slot, param, value }`                               | Send slot change (level/on/prepost, slot 0-based) |
 | `command.exec`    | `{ id }` (e.g. `"Transport_Play"`)                            | Execute a Cubase command |
 | `session.status`  | `{}`                                                          | Get session status       |
 

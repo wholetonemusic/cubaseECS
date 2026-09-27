@@ -76,3 +76,11 @@ pub struct PluginSetParamParams {
 pub struct CommandExecParams {
     pub id: String,
 }
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct SendSetParams {
+    pub track: String,
+    pub slot: u32,
+    pub param: String,
+    pub value: f64,
+}

@@ -28,6 +28,14 @@
 - command.exec: { id: string }
   - id は Transport_Play / Transport_Stop / Transport_Record のいずれか
   - 例: {"jsonrpc":"2.0","method":"command.exec","params":{"id":"Transport_Play"},"id":3}
+- send.set: { track: string, slot: number, param: string, value: number }
+  - 事前条件: 対象トラックをCubase上で選択しておくこと(mixer/plugin同様)
+  - slot は0始まりのセンド番号 (VocalのFX送りが1つだけなら0)
+  - param は level / on / prepost のいずれか
+    - level: 0..1 直値 (例: 0.5)
+    - on: 1=有効、0=無効
+    - prepost: 1=プリフェーダー、0=ポストフェーダー
+  - 例: {"jsonrpc":"2.0","method":"send.set","params":{"track":"Vocal","slot":0,"param":"level","value":0.5},"id":6}
 - session.status: {}
   - 接続確認の最初に送ること。応答の ok / connected / selectedTrack を見る
   - 例: {"jsonrpc":"2.0","method":"session.status","params":{},"id":4}
@@ -35,6 +43,9 @@
 変換例:
 - 「ボーカルのコンプを強くして」
   → plugin.set_param / track=Vocal / slot=0 / plugin=Compressor / param=Threshold / value=0.35
+- 「ボーカルを前に出して」(メインボーカル定番)
+  → opencode/reference/vocal-main.md + opencode/presets/vocal-main.json に従い、
+    session.status → mixer.set(pan/volume) → slot順に plugin.set_param を送る
 - 「ボーカルを-6dBにして」
   → mixer.set / track=Vocal / param=volume / value=-6.0
 - 「再生して」「止めて」「録音開始」
@@ -43,6 +54,8 @@
   → mixer.set / track=Guitar / param=pan / value=-0.3
 
 注意:
+- 定番の値から入りたい場合は opencode/reference/index.md を見ること
+  (例: ボーカル前面化は vocal-main.md)。詳細はreference側にあり、このpromptは肥大させない
 - SysExは7bit-ASCII JSONのみ対応のため、日本語トラック名は英字表記に正規化すること
   (例: ボーカル→Vocal、ギター→Guitar、ドラム→Drums)
 - 不明点があっても自然言語のまま返さず、必ずJSON-RPCに変換して返すこと

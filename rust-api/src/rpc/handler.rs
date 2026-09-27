@@ -2,7 +2,9 @@ use axum::http::StatusCode;
 use serde_json::{json, Value};
 
 use crate::cubase::dispatcher::Dispatcher;
-use crate::rpc::types::{CommandExecParams, JsonRpcResponse, MixerSetParams, PluginSetParamParams};
+use crate::rpc::types::{
+    CommandExecParams, JsonRpcResponse, MixerSetParams, PluginSetParamParams, SendSetParams,
+};
 
 /// POST /rpc の分岐本体。テスト容易性のため dispatcher を注入する。
 pub async fn handle_rpc(req: Value, dispatcher: &Dispatcher) -> Result<Value, (StatusCode, Value)> {
@@ -65,6 +67,17 @@ pub async fn handle_rpc(req: Value, dispatcher: &Dispatcher) -> Result<Value, (S
                 .await;
             Ok(serde_json::to_value(JsonRpcResponse::ok(id, result)).unwrap())
         }
+        "send.set" => {
+            let p: SendSetParams =
+                serde_json::from_value(params).map_err(|e| invalid_params(&id, &e.to_string()))?;
+            if let Err(detail) = validate_send(&p) {
+                return Err(invalid_params(&id, &detail));
+            }
+            let result = dispatcher
+                .dispatch("send.set", serde_json::to_value(&p).unwrap(), id.clone())
+                .await;
+            Ok(serde_json::to_value(JsonRpcResponse::ok(id, result)).unwrap())
+        }
         "" => {
             let resp = JsonRpcResponse::err(id, -32600, "Invalid Request: missing method", None);
             Ok(serde_json::to_value(resp).unwrap())
@@ -123,6 +136,24 @@ fn validate_plugin(p: &PluginSetParamParams) -> Result<(), String> {
     Ok(())
 }
 
+/// Cubase Remote側の send スロット操作と対応。level は 0..1 直値。
+fn validate_send(p: &SendSetParams) -> Result<(), String> {
+    if p.track.trim().is_empty() {
+        return Err("track must be non-empty".to_string());
+    }
+    match p.param.to_lowercase().as_str() {
+        "level" => {
+            if !(0.0..=1.0).contains(&p.value) {
+                return Err(format!("send level must be 0..1, got {}", p.value));
+            }
+            Ok(())
+        }
+        "on" | "prepost" => Ok(()),
+        other => Err(format!(
+            "unsupported send param: {other} (level/on/prepost)"
+        )),
+    }
+}
 /// Cubase Remote側 TRANSPORT_IDS と対応する既知コマンドのみ通す。
 fn validate_command(p: &CommandExecParams) -> Result<(), String> {
     const KNOWN: &[&str] = &[

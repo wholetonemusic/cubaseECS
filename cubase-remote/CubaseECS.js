@@ -50,6 +50,24 @@ page.makeValueBinding(mixPan, selChannel.mValue.mPan)
 page.makeValueBinding(mixMute, selChannel.mValue.mMute)
 page.makeValueBinding(mixSolo, selChannel.mValue.mSolo)
 
+// ---- selected-track send slots (level/on/prepost; 8 slots pre-bound) ----
+var ECS_SEND_SLOTS = 8
+var sendLevelVars = []
+var sendOnVars = []
+var sendPrePostVars = []
+for (var si = 0; si < ECS_SEND_SLOTS; si++) {
+  var slotObj = selChannel.mSends.getByIndex(si)
+  var lv = surface.makeCustomValueVariable('ecsSendLevel' + si)
+  var on = surface.makeCustomValueVariable('ecsSendOn' + si)
+  var pp = surface.makeCustomValueVariable('ecsSendPrePost' + si)
+  page.makeValueBinding(lv, slotObj.mLevel)
+  page.makeValueBinding(on, slotObj.mOn)
+  page.makeValueBinding(pp, slotObj.mPrePost)
+  sendLevelVars.push(lv)
+  sendOnVars.push(on)
+  sendPrePostVars.push(pp)
+}
+
 // ---- DirectAccess (insert params; plugin用。mixerには使わない) ----
 var insertViewer = selChannel.mInsertAndStripEffects.makeInsertEffectViewer('ecsInsertViewer')
 var daInsertViewer = page.mHostAccess.makeDirectAccess(insertViewer)
@@ -279,6 +297,36 @@ function commandExec(params, activeDevice) {
   return { ok: true, id: params.id }
 }
 
+function sendSet(params, activeDevice) {
+  requireActiveMapping()
+  // mixer/plugin同様、対象トラック選択が前提。
+  if (String(selectedTrackTitle).toLowerCase() !== String(params.track).toLowerCase()) {
+    throw new Error('Select track "' + params.track + '" in Cubase first' +
+      ' (selected: "' + selectedTrackTitle + '")')
+  }
+  if (typeof params.slot !== 'number' || params.slot < 0 || params.slot >= ECS_SEND_SLOTS) {
+    throw new Error('send slot must be 0..' + (ECS_SEND_SLOTS - 1) + ', got ' + params.slot)
+  }
+  var name = String(params.param).toLowerCase()
+  var target = null
+  var wantValue = 0
+  if (name === 'level') {
+    wantValue = Number(params.value)
+    if (isNaN(wantValue) || wantValue < 0 || wantValue > 1) {
+      throw new Error('send level must be 0..1, got ' + params.value)
+    }
+    target = sendLevelVars[params.slot]
+  } else if (name === 'on' || name === 'prepost') {
+    wantValue = (params.value === true || params.value === 1 || params.value === '1') ? 1 : 0
+    target = (name === 'on') ? sendOnVars[params.slot] : sendPrePostVars[params.slot]
+  } else {
+    throw new Error('Unsupported send param: ' + params.param + ' (level/on/prepost)')
+  }
+  target.setProcessValue(activeDevice, wantValue)
+  return { ok: true, track: selectedTrackTitle, slot: params.slot, param: name,
+    value: wantValue, via: 'selected-track' }
+}
+
 function sessionStatus() {
   return { ok: true, connected: true, selectedTrack: selectedTrackTitle }
 }
@@ -293,6 +341,8 @@ function handleRpc(json, activeDevice) {
       return commandExec(json.params || {}, activeDevice)
     case 'session.status':
       return sessionStatus()
+    case 'send.set':
+      return sendSet(json.params || {}, activeDevice)
     default:
       throw new Error('Method not found: ' + json.method)
   }

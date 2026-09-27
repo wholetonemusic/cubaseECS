@@ -125,3 +125,28 @@ async fn session_status_reports_local_info() {
     assert_eq!(resp["result"]["service"], "cubase-ecs-api");
     assert_eq!(resp["result"]["midi_mode"], "mock");
 }
+
+#[tokio::test]
+async fn send_set_ok() {
+    let d = Dispatcher::mock();
+    let req = json!({"jsonrpc":"2.0","method":"send.set","params":{"track":"Vocal","slot":0,"param":"level","value":0.5},"id":18});
+    let resp = handle_rpc(req, &d).await.unwrap();
+    assert_eq!(resp["result"]["ok"], true);
+    assert_eq!(resp["result"]["method"], "send.set");
+    assert_eq!(resp["id"], 18);
+}
+
+#[tokio::test]
+async fn send_set_rejects_bad_param_and_range() {
+    let d = Dispatcher::mock();
+    let bad_param = json!({"jsonrpc":"2.0","method":"send.set","params":{"track":"Vocal","slot":0,"param":"destination","value":0.5},"id":19});
+    assert_eq!(
+        handle_rpc(bad_param, &d).await.unwrap_err().1["error"]["code"],
+        -32602
+    );
+    let bad_range = json!({"jsonrpc":"2.0","method":"send.set","params":{"track":"Vocal","slot":0,"param":"level","value":1.5},"id":20});
+    assert_eq!(
+        handle_rpc(bad_range, &d).await.unwrap_err().1["error"]["code"],
+        -32602
+    );
+}

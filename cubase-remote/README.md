@@ -73,6 +73,15 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3001/rpc `
   で変換を試みる（API 1.3 の Cubase 15 で利用可）。
 - `slot` は 0 始まりのインサート番号。`plugin` 名は不一致時に照合エラーになる。
 
+## 7. センド操作(`send.set`)
+
+- `{ track, slot, param, value }`。`param` は `level`(0..1直値) /
+  `on`(0/1) / `prepost`(0=ポスト、1=プリ)。`slot` は0始まりのセンド番号。
+- 選択中トラックの `mSends` に束縛した隠しコントロールで駆動
+  (センド8スロット分を事前束縛)。対象トラックの事前選択が必須。
+- センド先の割当変更・リターントラック作成・出力ルーティング変更は
+  MIDI Remote APIに該当機能がなく対象外。宛先はCubase上で手動設定すること。
+
 ## 6. トラブルシューティング
 
 - **デバイスが無効/未検出**: MIDI Remote Manager で `WholeTone / CubaseECS` を
