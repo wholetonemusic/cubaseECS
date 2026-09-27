@@ -39,9 +39,38 @@ impl Dispatcher {
                 if self.midi_mode != "host" {
                     return self.mock_result(method, &bytes);
                 }
-                self.dispatch_host(method, &bytes, &id).await
+                let result = self.dispatch_host(method, &bytes, &id).await;
+                if method == "session.status" {
+                    return Self::with_local_status(result);
+                }
+                result
             }
             Err(e) => json!({"ok": false, "error": e.to_string()}),
+        }
+    }
+
+    /// session.status 応答にAPI側の稼働情報を付加する(host時)。
+    /// Cubase応答がオブジェクトならキーをマージし、そうでなければ
+    /// `cubase` キー配下に格納する。エラー応答はそのまま通す。
+    fn with_local_status(mut result: Value) -> Value {
+        let local = json!({
+            "service": "cubase-ecs-api",
+            "version": env!("CARGO_PKG_VERSION"),
+            "midi_mode": "host-midi",
+            "uptime_secs": uptime_secs(),
+        });
+        match result.as_object_mut() {
+            Some(map) => {
+                if map.get("ok") == Some(&Value::Bool(false)) && map.get("error").is_some() {
+                    map.insert("local".to_string(), local);
+                } else {
+                    for (k, v) in local.as_object().unwrap() {
+                        map.entry(k.clone()).or_insert(v.clone());
+                    }
+                }
+                result
+            }
+            None => json!({"ok": true, "local": local, "cubase": result}),
         }
     }
 
@@ -57,6 +86,7 @@ impl Dispatcher {
         if method == "session.status" {
             result["service"] = json!("cubase-ecs-api");
             result["version"] = json!(env!("CARGO_PKG_VERSION"));
+            result["midi_mode"] = json!(port.name());
             result["uptime_secs"] = json!(uptime_secs());
         }
         result
@@ -65,18 +95,23 @@ impl Dispatcher {
     async fn dispatch_host(&self, _method: &str, bytes: &[u8], id: &Value) -> Value {
         #[cfg(feature = "host-midi")]
         {
+            use crate::midi::responder;
+            // self-echo対策: 待機登録→送信→待機の順。送信後に登録すると
+            // loopMIDI反響を取りこぼし、応答を誤配送する。
+            let rx = responder::register(id);
             let port = port_from_env();
             if let Err(e) = port.send_sysex(bytes) {
+                responder::cancel(id);
                 return json!({"ok": false, "mode": port.name(), "error": e.to_string()});
             }
-            match crate::midi::responder::wait_for_response(id).await {
+            match responder::wait_on_registered(rx, id, responder::response_timeout()).await {
                 Some(result) => result,
                 None => json!({
                     "ok": false,
                     "mode": "host-midi",
                     "error": format!(
                         "timeout waiting for Cubase response ({} ms)",
-                        crate::midi::responder::response_timeout_ms()
+                        responder::response_timeout_ms()
                     ),
                 }),
             }

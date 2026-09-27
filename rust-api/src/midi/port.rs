@@ -31,6 +31,47 @@ pub mod host {
         std::env::var("MIDI_PORT").unwrap_or_else(|_| "loopMIDI Port".to_string())
     }
 
+    /// ポート選択: 完全一致を優先し、なければ部分一致、最後に先頭へ
+    /// フォールバックする。完全一致優先により `MIDI_PORT="loopMIDI Port 1"`
+    /// のように曖昧さを排除できる。
+    pub fn select_index(names: &[String], want: &str) -> Option<usize> {
+        if names.is_empty() {
+            return None;
+        }
+        names
+            .iter()
+            .position(|n| n == want)
+            .or_else(|| names.iter().position(|n| n.contains(want)))
+            .or(Some(0))
+    }
+
+    /// 診断用(/healthz): 利用可能なMIDI出力ポート名一覧。
+    pub fn list_output_ports() -> serde_json::Value {
+        match midir::MidiOutput::new("cubaseECS-probe") {
+            Ok(out) => serde_json::Value::Array(
+                out.ports()
+                    .iter()
+                    .map(|p| serde_json::Value::String(out.port_name(p).unwrap_or_default()))
+                    .collect(),
+            ),
+            Err(_) => serde_json::Value::Array(vec![]),
+        }
+    }
+
+    /// 診断用(/healthz): 利用可能なMIDI入力ポート名一覧。
+    pub fn list_input_ports() -> serde_json::Value {
+        match midir::MidiInput::new("cubaseECS-probe") {
+            Ok(input) => serde_json::Value::Array(
+                input
+                    .ports()
+                    .iter()
+                    .map(|p| serde_json::Value::String(input.port_name(p).unwrap_or_default()))
+                    .collect(),
+            ),
+            Err(_) => serde_json::Value::Array(vec![]),
+        }
+    }
+
     pub struct HostMidiPort {
         pub port_name: String,
     }
@@ -42,14 +83,16 @@ pub mod host {
             if ports.is_empty() {
                 anyhow::bail!("no MIDI output ports found (is loopMIDI running?)");
             }
-            let want = self.port_name.as_str();
-            let port = ports
+            let names: Vec<String> = ports
                 .iter()
-                .find(|p| out.port_name(p).map(|n| n.contains(want)).unwrap_or(false))
-                .or_else(|| ports.first())
-                .context("no MIDI output ports")?;
+                .map(|p| out.port_name(p).unwrap_or_default())
+                .collect();
+            let want = self.port_name.as_str();
+            let idx = select_index(&names, want).context("no MIDI output ports")?;
+            let port = &ports[idx];
             tracing::info!(
-                port = %out.port_name(port).unwrap_or_default(),
+                port = %names[idx],
+                available = ?names,
                 "HostMidiPort: connecting MIDI out"
             );
             out.connect(port, "cubaseECS-out")
@@ -66,6 +109,23 @@ pub mod host {
         }
         fn name(&self) -> &'static str {
             "host-midi"
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::select_index;
+
+        #[test]
+        fn prefers_exact_match_over_substring() {
+            let names = vec!["loopMIDI Port 1".to_string(), "loopMIDI Port".to_string()];
+            assert_eq!(select_index(&names, "loopMIDI Port"), Some(1));
+            assert_eq!(select_index(&names, "loopMIDI Port 1"), Some(0));
+            // 部分一致フォールバック
+            assert_eq!(select_index(&names, "loopMIDI"), Some(0));
+            // 不一致は先頭へフォールバック
+            assert_eq!(select_index(&names, "nothing"), Some(0));
+            assert_eq!(select_index(&[], "loopMIDI Port"), None);
         }
     }
 }

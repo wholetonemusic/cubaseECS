@@ -19,30 +19,22 @@ pub async fn handle_rpc(req: Value, dispatcher: &Dispatcher) -> Result<Value, (S
 
     match method {
         "mixer.set" => {
-            let p: MixerSetParams = serde_json::from_value(params).map_err(|e| {
-                let resp = JsonRpcResponse::err(
-                    id.clone(),
-                    -32602,
-                    "Invalid params",
-                    Some(json!({ "detail": e.to_string() })),
-                );
-                (StatusCode::OK, serde_json::to_value(resp).unwrap())
-            })?;
+            let p: MixerSetParams =
+                serde_json::from_value(params).map_err(|e| invalid_params(&id, &e.to_string()))?;
+            if let Err(detail) = validate_mixer(&p) {
+                return Err(invalid_params(&id, &detail));
+            }
             let result = dispatcher
                 .dispatch("mixer.set", serde_json::to_value(&p).unwrap(), id.clone())
                 .await;
             Ok(serde_json::to_value(JsonRpcResponse::ok(id, result)).unwrap())
         }
         "plugin.set_param" => {
-            let p: PluginSetParamParams = serde_json::from_value(params).map_err(|e| {
-                let resp = JsonRpcResponse::err(
-                    id.clone(),
-                    -32602,
-                    "Invalid params",
-                    Some(json!({ "detail": e.to_string() })),
-                );
-                (StatusCode::OK, serde_json::to_value(resp).unwrap())
-            })?;
+            let p: PluginSetParamParams =
+                serde_json::from_value(params).map_err(|e| invalid_params(&id, &e.to_string()))?;
+            if let Err(detail) = validate_plugin(&p) {
+                return Err(invalid_params(&id, &detail));
+            }
             let result = dispatcher
                 .dispatch(
                     "plugin.set_param",
@@ -53,15 +45,11 @@ pub async fn handle_rpc(req: Value, dispatcher: &Dispatcher) -> Result<Value, (S
             Ok(serde_json::to_value(JsonRpcResponse::ok(id, result)).unwrap())
         }
         "command.exec" => {
-            let p: CommandExecParams = serde_json::from_value(params).map_err(|e| {
-                let resp = JsonRpcResponse::err(
-                    id.clone(),
-                    -32602,
-                    "Invalid params",
-                    Some(json!({ "detail": e.to_string() })),
-                );
-                (StatusCode::OK, serde_json::to_value(resp).unwrap())
-            })?;
+            let p: CommandExecParams =
+                serde_json::from_value(params).map_err(|e| invalid_params(&id, &e.to_string()))?;
+            if let Err(detail) = validate_command(&p) {
+                return Err(invalid_params(&id, &detail));
+            }
             let result = dispatcher
                 .dispatch(
                     "command.exec",
@@ -86,5 +74,74 @@ pub async fn handle_rpc(req: Value, dispatcher: &Dispatcher) -> Result<Value, (S
                 JsonRpcResponse::err(id, -32601, format!("Method not found: {}", other), None);
             Ok(serde_json::to_value(resp).unwrap())
         }
+    }
+}
+
+fn invalid_params(id: &Value, detail: &str) -> (StatusCode, Value) {
+    let resp = JsonRpcResponse::err(
+        id.clone(),
+        -32602,
+        "Invalid params",
+        Some(json!({ "detail": detail })),
+    );
+    (StatusCode::OK, serde_json::to_value(resp).unwrap())
+}
+
+/// mixer.set の Cubase非依存バリデーション。NG時は detail 文字列を返す。
+fn validate_mixer(p: &MixerSetParams) -> Result<(), String> {
+    if p.track.trim().is_empty() {
+        return Err("track must be non-empty".to_string());
+    }
+    match p.param.to_lowercase().as_str() {
+        "volume" => Ok(()),
+        "volume01" => {
+            if !(0.0..=1.0).contains(&p.value) {
+                return Err(format!("volume01 must be 0..1, got {}", p.value));
+            }
+            Ok(())
+        }
+        "mute" | "solo" => Ok(()),
+        "pan" => {
+            if !(-1.0..=1.0).contains(&p.value) {
+                return Err(format!("pan must be -1..1, got {}", p.value));
+            }
+            Ok(())
+        }
+        other => Err(format!(
+            "unsupported mixer param: {other} (volume/volume01/mute/solo/pan)"
+        )),
+    }
+}
+
+fn validate_plugin(p: &PluginSetParamParams) -> Result<(), String> {
+    if p.track.trim().is_empty() {
+        return Err("track must be non-empty".to_string());
+    }
+    if p.param.trim().is_empty() {
+        return Err("param must be non-empty".to_string());
+    }
+    Ok(())
+}
+
+/// Cubase Remote側 TRANSPORT_IDS と対応する既知コマンドのみ通す。
+fn validate_command(p: &CommandExecParams) -> Result<(), String> {
+    const KNOWN: &[&str] = &[
+        "Transport_Play",
+        "TransportPlay",
+        "play",
+        "Transport_Stop",
+        "TransportStop",
+        "stop",
+        "Transport_Record",
+        "TransportRecord",
+        "record",
+    ];
+    if KNOWN.contains(&p.id.as_str()) {
+        Ok(())
+    } else {
+        Err(format!(
+            "unsupported command id: {} (Transport_Play/Transport_Stop/Transport_Record)",
+            p.id
+        ))
     }
 }

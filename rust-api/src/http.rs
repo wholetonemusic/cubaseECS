@@ -34,15 +34,21 @@ async fn rpc_handler(body: Result<Json<Value>, JsonRejection>) -> impl IntoRespo
 }
 
 async fn healthz() -> impl IntoResponse {
-    (
-        StatusCode::OK,
-        Json(json!({
-            "status": "ok",
-            "service": "cubase-ecs-api",
-            "version": env!("CARGO_PKG_VERSION"),
-            "midi_mode": std::env::var("MIDI_MODE").unwrap_or_else(|_| "mock".to_string()),
-        })),
-    )
+    // host-midi無効時は ports 付加がないため unused_mut になる。feature依存の正当な可変。
+    #[allow(unused_mut)]
+    let mut body = json!({
+        "status": "ok",
+        "service": "cubase-ecs-api",
+        "version": env!("CARGO_PKG_VERSION"),
+        "midi_mode": std::env::var("MIDI_MODE").unwrap_or_else(|_| "mock".to_string()),
+        "midi_port_want": std::env::var("MIDI_PORT").unwrap_or_else(|_| "loopMIDI Port".to_string()),
+    });
+    #[cfg(feature = "host-midi")]
+    {
+        body["midi_out_ports"] = crate::midi::port::host::list_output_ports();
+        body["midi_in_ports"] = crate::midi::port::host::list_input_ports();
+    }
+    (StatusCode::OK, Json(body))
 }
 
 pub fn build_app() -> Router {

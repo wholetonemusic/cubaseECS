@@ -3,8 +3,9 @@
 // Rust API -> SysEx F0 7D <ASCII JSON> F7 -> this script -> Cubase.
 //
 // Value semantics (Cubase実API合わせ):
-// - mixer volume は Cubase 内部では 0..1 正規化値。本スクリプトは dB を受けて
+// - mixer は選択中トラックに束縛した隠しフェーダで駆動する。volume は dB を受けて
 //   近似変換する (param "volume": dB, "volume01": 0..1 直値)。
+//   plugin同様、対象トラックの事前選択が必須。
 // - plugin.set_param の value は 0..1 プロセス値。範囲外の数値はプレーン値
 //   (dB等) とみなして convertParameterPlainToProcessValue で変換を試みる。
 
@@ -25,7 +26,9 @@ deviceDriver.makeDetectionUnit().detectPortPair(midiInput, midiOutput)
   .expectInputNameContains(ECS_PORT_MATCH)
   .expectOutputNameContains(ECS_PORT_MATCH)
 
-// ---- hidden surface actuators (transport) ----
+// ---- hidden surface actuators (transport + mixer on selected track) ----
+// mixerは選択中トラック(selChannel)に束縛した隠しフェーダで駆動する。
+// DirectAccessのトラック名解決は使わない(重複列挙・表記ゆれ・clickVolume誤爆のため)。
 var surface = deviceDriver.mSurface
 var transportPlay = surface.makeCustomValueVariable('ecsTransportPlay')
 var transportStop = surface.makeCustomValueVariable('ecsTransportStop')
@@ -36,9 +39,18 @@ page.makeValueBinding(transportPlay, page.mHostAccess.mTransport.mValue.mStart)
 page.makeValueBinding(transportStop, page.mHostAccess.mTransport.mValue.mStop)
 page.makeValueBinding(transportRecord, page.mHostAccess.mTransport.mValue.mRecord)
 
-// ---- DirectAccess (mixer by track name / insert params) ----
-var daMixConsole = page.mHostAccess.makeDirectAccess(page.mHostAccess.mMixConsole)
+// ---- selected-track channel (mixer) ----
 var selChannel = page.mHostAccess.mTrackSelection.mMixerChannel
+var mixFader = surface.makeCustomValueVariable('ecsMixFader')
+var mixPan = surface.makeCustomValueVariable('ecsMixPan')
+var mixMute = surface.makeCustomValueVariable('ecsMixMute')
+var mixSolo = surface.makeCustomValueVariable('ecsMixSolo')
+page.makeValueBinding(mixFader, selChannel.mValue.mVolume)
+page.makeValueBinding(mixPan, selChannel.mValue.mPan)
+page.makeValueBinding(mixMute, selChannel.mValue.mMute)
+page.makeValueBinding(mixSolo, selChannel.mValue.mSolo)
+
+// ---- DirectAccess (insert params; plugin用。mixerには使わない) ----
 var insertViewer = selChannel.mInsertAndStripEffects.makeInsertEffectViewer('ecsInsertViewer')
 var daInsertViewer = page.mHostAccess.makeDirectAccess(insertViewer)
 
@@ -48,13 +60,11 @@ var lastPluginIdentity = ''
 
 page.mOnActivate = function (activeDevice, activeMapping) {
   currentMapping = activeMapping
-  daMixConsole.activate(activeMapping)
   daInsertViewer.activate(activeMapping)
 }
 
 page.mOnDeactivate = function (activeDevice, activeMapping) {
   currentMapping = null
-  try { daMixConsole.deactivate(activeMapping) } catch (e) {}
   try { daInsertViewer.deactivate(activeMapping) } catch (e) {}
 }
 
@@ -83,8 +93,16 @@ function decodeSysExToJson(data) {
   return JSON.parse(chars.join(''))
 }
 
+function asciiSafe(str) {
+  // SysExは7bit-ASCII JSONのみ。非ASCIIは\uXXXXエスケープ(情報保持・構文安全)する。
+  // 生のまま &0x7F すると制御文字化けでJSON parse不能になり応答ロストする。
+  return String(str).replace(/[\u0080-\uFFFF]/g, function (c) {
+    return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4)
+  })
+}
+
 function encodeJsonToSysEx(obj) {
-  var str = JSON.stringify(obj)
+  var str = asciiSafe(JSON.stringify(obj))
   var out = [0xF0, ECS_SYSEX_ID]
   for (var i = 0; i < str.length; i++) {
     out.push(str.charCodeAt(i) & 0x7F)
@@ -93,7 +111,15 @@ function encodeJsonToSysEx(obj) {
   return out
 }
 
-// dB -> 0..1 process value (振幅則の近似。Cubaseフェーダーテーパとは微差あり)
+// dB -> 0..1 process value (Cubase実測テーパー。2026-09-27校正:
+// p=1.00→+6.02dB, 0.75→-0.81dB, 0.50→-8.31dB, 0.25119→-20.3dB。
+// 前方特性 dB(p)=6.02+61.87x+64.92x^2+58.22x^3 (x=log10(p)) に二分法で逆変換)
+function cubaseDbFromProcess(p) {
+  if (p <= 0) return -Infinity
+  var x = Math.log(p) / Math.LN10
+  return 6.02 + 61.87 * x + 64.92 * x * x + 58.22 * x * x * x
+}
+
 function dbToProcess(db) {
   var v = Number(db)
   if (isNaN(v)) {
@@ -101,35 +127,23 @@ function dbToProcess(db) {
   }
   if (v <= ECS_DB_MIN) return 0
   if (v >= ECS_DB_MAX) return 1
-  var proc = Math.pow(10, v / 20) / Math.pow(10, ECS_DB_MAX / 20)
-  return Math.max(0, Math.min(1, proc))
-}
-
-function findChannelByTitle(da, title) {
-  var want = String(title).toLowerCase()
-  var baseId = da.getBaseObjectID(currentMapping)
-  var n = da.getNumberOfChildObjects(currentMapping, baseId)
-  var examples = []
-  for (var i = 0; i < n; i++) {
-    var childId = da.getChildObjectID(currentMapping, baseId, i)
-    var t = ''
-    try {
-      t = da.getObjectTitle(currentMapping, childId)
-    } catch (e) {
-      continue
-    }
-    if (examples.length < 8) examples.push(t)
-    if (String(t).toLowerCase() === want) {
-      return { id: childId, title: t }
+  var lo = 0
+  var hi = 1
+  for (var i = 0; i < 50; i++) {
+    var mid = (lo + hi) / 2
+    if (cubaseDbFromProcess(mid) < v) {
+      lo = mid
+    } else {
+      hi = mid
     }
   }
-  throw new Error('Track not found: ' + title +
-    ' (' + n + ' channels, e.g. ' + examples.join(' / ') + ')')
+  return (lo + hi) / 2
 }
 
 function findParamTag(da, objectId, wanted) {
   var want = String(wanted).toLowerCase()
   var count = da.getNumberOfParameters(currentMapping, objectId)
+  var fallback = null
   for (var i = 0; i < count; i++) {
     var tag = da.getParameterTagByIndex(currentMapping, objectId, i)
     var name = ''
@@ -138,10 +152,16 @@ function findParamTag(da, objectId, wanted) {
     } catch (e) {
       continue
     }
-    if (String(name).toLowerCase().indexOf(want) !== -1) {
+    var lname = String(name).toLowerCase()
+    // 完全一致を優先。部分一致だけだと clickVolume 等の別物に当たる。
+    if (lname === want) {
       return { tag: tag, name: name }
     }
+    if (!fallback && lname.indexOf(want) !== -1) {
+      fallback = { tag: tag, name: name }
+    }
   }
+  if (fallback) return fallback
   throw new Error('Parameter not found: ' + wanted)
 }
 
@@ -153,42 +173,49 @@ function requireActiveMapping() {
 
 // ---- method implementations ----
 
-function mixerSet(params) {
+function mixerSet(params, activeDevice) {
   requireActiveMapping()
-  var found = findChannelByTitle(daMixConsole, params.track)
-  var name = String(params.param).toLowerCase()
-  var tag
-  if (name === 'volume') {
-    var proc = dbToProcess(params.value)
-    tag = findParamTag(daMixConsole, found.id, 'volume')
-    daMixConsole.setParameterProcessValue(currentMapping, found.id, tag.tag, proc)
-    return { ok: true, track: found.title, param: 'volume', db: Number(params.value), process: proc }
+  // plugin同様、対象トラック選択が前提。選択チャンネル束縛フェーダで直接駆動する。
+  if (String(selectedTrackTitle).toLowerCase() !== String(params.track).toLowerCase()) {
+    throw new Error('Select track "' + params.track + '" in Cubase first' +
+      ' (selected: "' + selectedTrackTitle + '")')
   }
-  if (name === 'volume01') {
-    var direct = Number(params.value)
-    if (isNaN(direct) || direct < 0 || direct > 1) {
+  var name = String(params.param).toLowerCase()
+  var target = null
+  var wantValue = 0
+  if (name === 'volume') {
+    wantValue = dbToProcess(params.value)
+    target = mixFader
+  } else if (name === 'volume01') {
+    wantValue = Number(params.value)
+    if (isNaN(wantValue) || wantValue < 0 || wantValue > 1) {
       throw new Error('volume01 must be 0..1, got ' + params.value)
     }
-    tag = findParamTag(daMixConsole, found.id, 'volume')
-    daMixConsole.setParameterProcessValue(currentMapping, found.id, tag.tag, direct)
-    return { ok: true, track: found.title, param: 'volume01', process: direct }
-  }
-  if (name === 'mute' || name === 'solo') {
-    var on = (params.value === true || params.value === 1 || params.value === '1') ? 1 : 0
-    tag = findParamTag(daMixConsole, found.id, name)
-    daMixConsole.setParameterProcessValue(currentMapping, found.id, tag.tag, on)
-    return { ok: true, track: found.title, param: name, value: on }
-  }
-  if (name === 'pan') {
+    target = mixFader
+  } else if (name === 'mute' || name === 'solo') {
+    wantValue = (params.value === true || params.value === 1 || params.value === '1') ? 1 : 0
+    target = (name === 'mute') ? mixMute : mixSolo
+  } else if (name === 'pan') {
     var pan = Number(params.value)
     if (isNaN(pan) || pan < -1 || pan > 1) {
       throw new Error('pan must be -1..1, got ' + params.value)
     }
-    tag = findParamTag(daMixConsole, found.id, 'pan')
-    daMixConsole.setParameterProcessValue(currentMapping, found.id, tag.tag, (pan + 1) / 2)
-    return { ok: true, track: found.title, param: 'pan', value: pan }
+    wantValue = (pan + 1) / 2
+    target = mixPan
+  } else {
+    throw new Error('Unsupported mixer param: ' + params.param + ' (volume/volume01/mute/solo/pan)')
   }
-  throw new Error('Unsupported mixer param: ' + params.param + ' (volume/volume01/mute/solo/pan)')
+  target.setProcessValue(activeDevice, wantValue)
+  var result = { ok: true, track: selectedTrackTitle, param: name, via: 'selected-track' }
+  if (name === 'volume') {
+    result.db = Number(params.value)
+    result.process = wantValue
+  } else if (name === 'volume01') {
+    result.process = wantValue
+  } else {
+    result.value = wantValue
+  }
+  return result
 }
 
 function pluginSetParam(params) {
@@ -259,7 +286,7 @@ function sessionStatus() {
 function handleRpc(json, activeDevice) {
   switch (json.method) {
     case 'mixer.set':
-      return mixerSet(json.params || {})
+      return mixerSet(json.params || {}, activeDevice)
     case 'plugin.set_param':
       return pluginSetParam(json.params || {})
     case 'command.exec':
@@ -275,6 +302,11 @@ midiInput.mOnSysex = function (activeDevice, sysexMsg) {
   var req = null
   try {
     req = decodeSysExToJson(sysexMsg)
+    // loopMIDI反響(自送信応答の跳ね返り: methodなし)は無視する。
+    // 応答しないと Rust側のid相関を誤作動させる。
+    if (!req || typeof req.method !== 'string') {
+      return
+    }
     var result = handleRpc(req, activeDevice)
     midiOutput.sendMidi(activeDevice, encodeJsonToSysEx({
       jsonrpc: '2.0',

@@ -135,10 +135,14 @@ translate user utterances into JSON-RPC commands sent to
 ## Roadmap
 
 - **Phase 1** (done): JSON-RPC DSL, `/rpc` + SysEx mock, Docker dev env, prompt/scaffold.
-- **Phase 2** (done, needs on-site verification): Cubase Remote driver
-  implementation, real MIDI send/receive with id-correlated response wait,
-  `transport.play` / `mixer.set` / `plugin.set_param` via loopMIDI.
-  Remaining approximations: dB→0..1 amplitude-law conversion, plugin calls
-  require the target track to be selected.
-- **Phase 3**: error handling, `session.status`, chat-driven operation.
+- **Phase 2** (done, verified on-site 2026-09-27): Cubase Remote driver,
+  real MIDI send/receive with id-correlated response wait (echo-robust),
+  `transport.play/stop` / `mixer.set` (volume/mute/solo/pan) /
+  `plugin.set_param` via loopMIDI all round-tripped against Cubase Artist 15.
+  Volume uses a measured fader taper (−6dB → −5.95dB display).
+  Mixer and plugin calls require the target track to be selected.
+- **Phase 3** (done): error handling (Rust-side param validation → `-32602`,
+  echo-robust id correlation, enriched `session.status` + `/healthz` MIDI
+  diagnostics), chat-driven operation (`opencode/prompt.md` with value
+  semantics, preconditions, and error recovery).
 - **Phase 4**: voice UI, auto-mix, presets, external integrations.

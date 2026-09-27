@@ -59,12 +59,35 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3001/rpc `
 
 ## 5. 値セマンティクスと制約（Phase 2）
 
-- `mixer.set / volume`: dB 値を受け、振幅則で 0..1 に近似変換する
-  （Cubase フェーダーテーパーとは微差あり。`-60dB以下→0`、`+6dB以上→1`）。
+- `mixer.set / volume`: dB 値を受け、実測テーパーで 0..1 に変換する
+  （校正点: 1.00→+6.02dB、0.75→-0.81dB、0.50→-8.31dB、0.25119→-20.3dB。
+  3次対数式 `dB=6.02+61.87x+64.92x²+58.22x³ (x=log10(p))` を二分法で逆変換。
+  -6dB指定→-5.95dB表示を確認。`-60dB以下→0`、`+6dB以上→1`）。
   `volume01` で 0..1 直値、`mute`/`solo`（0/1）、`pan`（-1..1）も可。
+  駆動は選択中トラック束縛の隠しフェーダ（DirectAccessの名前解決は使わない。
+  列挙重複・表記ゆれ・clickVolume誤爆の教訓）。
+- `mixer.set`・`plugin.set_param` とも対象トラックが Cubase で選択されていることが前提。
+  未選択時は `Select track "X" in Cubase first` エラーが返る。
 - `plugin.set_param / value`: 0..1 はプロセス値直指定。範囲外の数値は
   プレーーン値（dB 等）とみなし `convertParameterPlainToProcessValue`
   で変換を試みる（API 1.3 の Cubase 15 で利用可）。
-- `plugin.set_param` は対象トラックが Cubase で選択されていることが前提。
-  未選択時は `Select track "X" in Cubase first` エラーが返る。
 - `slot` は 0 始まりのインサート番号。`plugin` 名は不一致時に照合エラーになる。
+
+## 6. トラブルシューティング
+
+- **デバイスが無効/未検出**: MIDI Remote Manager で `WholeTone / CubaseECS` を
+  追加・有効化し、Input/Output とも同一 loopMIDI ポートを選ぶ。
+  複数候補(`loopMIDI Port` / `loopMIDI Port 1`)がある場合は無印の
+  `loopMIDI Port` を推奨(API既定 `MIDI_PORT` と一致)。
+- **スクリプト更新後**: `CubaseECS.js` 配置後は Cubase を再起動する
+  (起動時に読み込まれるため)。
+- **timeout の切り分け**:
+  1. `GET /healthz` の `midi_out_ports` / `midi_in_ports` でポート可視化。
+  2. APIログの `connecting MIDI out port=... available=...` で選択ポート確認。
+  3. 同一ポートの反響(self-echo)は Rust/JS 双方で無視する実装
+     (応答に `result`/`error` がないもの・要求に `method` がないものは破棄)。
+     それでも timeout する場合は Cubase 側未受信(デバイス無効・別ポート束縛)を疑う。
+- **Hub状態(プロジェクト未オープン)**: `session.status` のみ可。
+  mixer/plugin にはトラック入りのプロジェクトが必要。
+- **plugin は事前に Cubase 上で対象トラックを選択** (未選択時は
+  `Select track "X" in Cubase first` が返る)。

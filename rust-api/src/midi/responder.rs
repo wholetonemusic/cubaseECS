@@ -44,9 +44,26 @@ pub async fn wait_for_response(id: &Value) -> Option<Value> {
 }
 
 pub async fn wait_for_response_with_timeout(id: &Value, timeout: Duration) -> Option<Value> {
+    let rx = register(id);
+    wait_on_registered(rx, id, timeout).await
+}
+
+/// 待機エントリを先に登録し、受信側を返す。
+/// 送信→待機の順だと self-echo を取りこぼす/誤配送するため、
+/// dispatcher は必ず register → send → wait_on_registered の順で呼ぶこと。
+pub fn register(id: &Value) -> oneshot::Receiver<Value> {
     let (tx, rx) = oneshot::channel();
     pending().lock().unwrap().insert(id_key(id), tx);
     ensure_listener();
+    rx
+}
+
+/// 登録済み待機の完了を待つ。タイムアウト時はエントリを掃除して `None`。
+pub async fn wait_on_registered(
+    rx: oneshot::Receiver<Value>,
+    id: &Value,
+    timeout: Duration,
+) -> Option<Value> {
     match tokio::time::timeout(timeout, rx).await {
         Ok(Ok(v)) => Some(v),
         _ => {
@@ -56,16 +73,31 @@ pub async fn wait_for_response_with_timeout(id: &Value, timeout: Duration) -> Op
     }
 }
 
+/// 送信失敗時など、待機エントリを取り消す。
+pub fn cancel(id: &Value) {
+    pending().lock().unwrap().remove(&id_key(id));
+}
+
 /// 受信した応答 JSON を待機中のリクエストへ配送する。
 /// `{"jsonrpc":"2.0","id":N,"result":{...}}` 形式を想定する。
+/// loopMIDI は同一ポートの送信を送信者自身にも返す(self-echo)ため、
+/// `result`/`error` を持たないメッセージ(自送信リクエストの反響)は無視し、
+/// 待機エントリを消費しない。
 pub fn deliver(msg: Value) {
+    let payload = if let Some(r) = msg.get("result") {
+        r.clone()
+    } else if let Some(e) = msg.get("error") {
+        serde_json::json!({"ok": false, "rpc_error": e})
+    } else {
+        tracing::debug!(msg = %msg, "deliver: ignoring non-response (no result/error)");
+        return;
+    };
     let key = msg
         .get("id")
         .map(id_key)
         .unwrap_or_else(|| "null".to_string());
-    let result = msg.get("result").cloned().unwrap_or(Value::Null);
     if let Some(tx) = pending().lock().unwrap().remove(&key) {
-        let _ = tx.send(result);
+        let _ = tx.send(payload);
     }
 }
 
@@ -95,19 +127,16 @@ fn run_input_loop() -> anyhow::Result<()> {
     if ports.is_empty() {
         anyhow::bail!("no MIDI input ports found (is loopMIDI running?)");
     }
-    let port = ports
+    let names: Vec<String> = ports
         .iter()
-        .find(|p| {
-            input
-                .port_name(p)
-                .map(|n| n.contains(want.as_str()))
-                .unwrap_or(false)
-        })
-        .or_else(|| ports.first())
-        .context("no MIDI input ports")?
-        .clone();
+        .map(|p| input.port_name(p).unwrap_or_default())
+        .collect();
+    let idx =
+        super::port::host::select_index(&names, want.as_str()).context("no MIDI input ports")?;
+    let port = ports[idx].clone();
     tracing::info!(
-        port = %input.port_name(&port).unwrap_or_default(),
+        port = %names[idx],
+        available = ?names,
         "MIDI input listener: waiting for Cubase responses"
     );
 
@@ -126,12 +155,27 @@ fn run_input_loop() -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("MIDI in connect failed: {e}"))?;
 
     while let Ok(bytes) = rx.recv() {
+        tracing::debug!(len = bytes.len(), head = ?hex_head(&bytes), "MIDI in raw");
         match super::sysex::decode(&bytes) {
-            Ok(json) => deliver(json),
+            Ok(json) => {
+                tracing::debug!(msg = %json, "MIDI in decoded");
+                deliver(json);
+            }
             Err(e) => tracing::warn!(error = %e, "ignoring undecodable MIDI message"),
         }
     }
     Ok(())
+}
+
+/// 診断用: 先頭最大16バイトのHEXダンプ。
+#[cfg(feature = "host-midi")]
+fn hex_head(bytes: &[u8]) -> String {
+    bytes
+        .iter()
+        .take(16)
+        .map(|b| format!("{b:02X}"))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 #[cfg(test)]
@@ -161,6 +205,35 @@ mod tests {
         assert_eq!(
             wait_for_response_with_timeout(&id, Duration::from_millis(50)).await,
             None
+        );
+    }
+
+    #[tokio::test]
+    async fn ignores_request_echo_without_result() {
+        // loopMIDI self-echo(自送信リクエストの反響)は待機を消費せず、
+        // タイムアウト(None)になること。誤配送時は Some(Null) になる。
+        let id = json!(9101);
+        deliver(json!({"jsonrpc": "2.0", "id": 9101, "method": "session.status", "params": {}}));
+        assert_eq!(
+            wait_for_response_with_timeout(&id, Duration::from_millis(50)).await,
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn echo_then_real_response_delivers_response() {
+        let id = json!(9102);
+        let waiter = tokio::spawn(async move {
+            wait_for_response_with_timeout(&id, Duration::from_secs(2)).await
+        });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        // 先に反響が届いても無視され、後続の真応答が届くこと。
+        deliver(json!({"jsonrpc": "2.0", "id": 9102, "method": "session.status", "params": {}}));
+        deliver(json!({"jsonrpc": "2.0", "id": 9102, "result": {"ok": true}}));
+        assert_eq!(
+            waiter.await.unwrap(),
+            Some(json!({"ok": true})),
+            "waiter should skip echo and receive the real response"
         );
     }
 }
