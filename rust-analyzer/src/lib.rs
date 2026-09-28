@@ -162,6 +162,7 @@ impl IComponentTrait for AnalyzerProcessor {
         }
     }
 
+    #[allow(clippy::unnecessary_cast)]
     unsafe fn getBusInfo(
         &self,
         mediaType: MediaType,
