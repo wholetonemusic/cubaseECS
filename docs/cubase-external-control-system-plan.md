@@ -285,7 +285,7 @@ Cubase
 
 ### Phase 4 — 拡張
 - 音声UI追加  
-- 自動ミックス機能  
+- 自動ミックス機能（入力: AI Audio Analyzer `analyzer.get_features`、出力: 既存 mixer/plugin/send）  
 - プラグインプリセット適用  
 - 外部ツール連携  
 

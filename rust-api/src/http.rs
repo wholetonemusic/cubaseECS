@@ -42,6 +42,8 @@ async fn healthz() -> impl IntoResponse {
         "version": env!("CARGO_PKG_VERSION"),
         "midi_mode": std::env::var("MIDI_MODE").unwrap_or_else(|_| "mock".to_string()),
         "midi_port_want": std::env::var("MIDI_PORT").unwrap_or_else(|_| "loopMIDI Port".to_string()),
+        "analyzer_available": crate::analyzer::is_available(),
+        "analyzer_age_ms": crate::analyzer::age_ms(),
     });
     #[cfg(feature = "host-midi")]
     {

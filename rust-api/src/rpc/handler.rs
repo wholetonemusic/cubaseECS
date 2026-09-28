@@ -1,6 +1,7 @@
 use axum::http::StatusCode;
 use serde_json::{json, Value};
 
+use crate::analyzer;
 use crate::cubase::dispatcher::Dispatcher;
 use crate::rpc::types::{
     CommandExecParams, JsonRpcResponse, MixerSetParams, PluginSetParamParams, SendSetParams,
@@ -76,6 +77,15 @@ pub async fn handle_rpc(req: Value, dispatcher: &Dispatcher) -> Result<Value, (S
             let result = dispatcher
                 .dispatch("send.set", serde_json::to_value(&p).unwrap(), id.clone())
                 .await;
+            Ok(serde_json::to_value(JsonRpcResponse::ok(id, result)).unwrap())
+        }
+        // AI Audio Analyzer読取 (spec §4–§5)。VST3共有メモリ→JSON。
+        // 書込は既存 mixer/plugin/send を再利用し、新規書込RPCは作らない。
+        "analyzer.get_features" => {
+            if !params.is_null() && !params.is_object() {
+                return Err(invalid_params(&id, "params must be an object or omitted"));
+            }
+            let result = analyzer::get_features();
             Ok(serde_json::to_value(JsonRpcResponse::ok(id, result)).unwrap())
         }
         "" => {

@@ -39,6 +39,10 @@
 - session.status: {}
   - 接続確認の最初に送ること。応答の ok / connected / selectedTrack を見る
   - 例: {"jsonrpc":"2.0","method":"session.status","params":{},"id":4}
+- analyzer.get_features: {}
+  - AI Audio Analyzer (選択トラックのインサート) の実測値を読む読取専用。
+    書込は既存 mixer/plugin/send を使うこと。詳細は opencode/reference/analyzer-guide.md
+  - 例: {"jsonrpc":"2.0","method":"analyzer.get_features","params":{},"id":7}
 
 変換例:
 - 「ボーカルのコンプを強くして」
@@ -69,4 +73,6 @@
   - 'Plugin mismatch' → slot番号やプラグイン名を確認する
   - 'timeout waiting for Cubase response' → Cubase・loopMIDI・MIDI Remoteデバイスの接続を確認する
   - -32602 Invalid params → パラメータ名・値範囲(上記)を見直す
+  - analyzerが `{"ok":false,"error":"analyzer not running..."}` → Cubase上で対象トラックを選択しAI Audio Analyzerを挿してから再読
+  - analyzerが `stale:true` → 再生中に再読 (`mode:mock` は合成値。実測はhost+挿入時)
 - まず session.status で疎通確認し、必要な前提(トラック選択等)を満たしてから本体コマンドを送ること

@@ -1,3 +1,4 @@
+pub mod analyzer;
 pub mod cubase;
 pub mod http;
 pub mod midi;

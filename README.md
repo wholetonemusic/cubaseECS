@@ -30,6 +30,8 @@ examples, roadmap) and `docs/session-log.md` for the session history.
 | Path            | Description                                                      |
 | --------------- | ---------------------------------------------------------------- |
 | `rust-api/`     | Rust API server: `POST /rpc`, JSON-RPC dispatch, SysEx encode/decode |
+| `rust-analyzer/`| AI Audio Analyzer VST3: DSP (RMS/FFT bands/transient/width) + shared memory writer |
+| `tools/sim_features.py` | Analyzer writer simulator (Windows, no Cubase needed for host-mode E2E) |
 | `cubase-remote/`| Cubase MIDI Remote script stub + setup notes (Phase 2 target)    |
 | `opencode/`     | OpenCode prompt template (natural language to JSON-RPC)          |
 | `opencode/reference/` | Paraphrased starting points per topic (e.g. `vocal-main.md`) |
@@ -86,10 +88,15 @@ docker compose down
 | `send.set`        | `{ track, slot, param, value }`                               | Send slot change (level/on/prepost, slot 0-based) |
 | `command.exec`    | `{ id }` (e.g. `"Transport_Play"`)                            | Execute a Cubase command |
 | `session.status`  | `{}`                                                          | Get session status       |
+| `analyzer.get_features` | `{}`                                                    | Read AI Audio Analyzer frame (RMS/bands/transient/width) |
 
 Requests and responses follow JSON-RPC 2.0. Unknown methods return `-32601`,
 invalid params return `-32602`. In Phase 1 the dispatcher replies with a mock
 result (`mode: "mock"`); waiting for real Cubase SysEx responses is Phase 2 work.
+`analyzer.get_features` is read-only: in mock mode it returns synthetic
+example values (`mode: "mock"`); in host mode it returns live shared-memory
+values (`mode: "host-midi"`), or `{ok:false}` with guidance when the VST3 is
+not inserted. Writes always reuse the mixer/plugin/send methods above.
 
 ### SysEx encoding
 
@@ -126,6 +133,27 @@ translate user utterances into JSON-RPC commands sent to
 
 > "thicken the vocal comp" -> `plugin.set_param / track=Vocal /
 > plugin=Compressor / param=Threshold / value=-6`
+
+## AI Audio Analyzer (VST3)
+
+Passthrough analyzer insert (`AI Audio Analyzer`, `rust-analyzer/`) that
+writes 10 Hz DSP frames (RMS/peak/crest, 5 FFT bands, transient index,
+stereo correlation) to a 1 KB lock-free shared memory slot, readable via
+`analyzer.get_features`. Operate on the selected track only (single slot).
+
+```powershell
+# Host-native build (Rust 1.82) + manual .vst3 bundle for Cubase
+cargo build --release --manifest-path rust-analyzer/Cargo.toml
+New-Item -ItemType Directory -Force "AI Audio Analyzer.vst3/Contents/x86_64-win"
+Copy-Item rust-analyzer/target/release/cubase_analyzer.dll `
+  "AI Audio Analyzer.vst3/Contents/x86_64-win/AI Audio Analyzer.vst3"
+# Then move the bundle into Cubase's VST3 folder and rescan.
+```
+
+Host-mode check without Cubase: run `python tools/sim_features.py`
+(Windows), start the API with `MIDI_MODE=host`, read
+`analyzer.get_features` (`mode: "host-midi"`, `stale: false`).
+Reading guide: `opencode/reference/analyzer-guide.md`.
 
 ## Toolchain notes
 

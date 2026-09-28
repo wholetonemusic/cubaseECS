@@ -46,6 +46,9 @@ async fn healthz_reports_service_and_version() {
     assert_eq!(body["version"], env!("CARGO_PKG_VERSION"));
     // 診断用: 要求ポート名は常に含まれる(host-midi時はポート一覧も)
     assert!(body.get("midi_port_want").is_some());
+    // Analyzer診断: 可用性と最終更新経過 (shm不在時は false/null)
+    assert!(body.get("analyzer_available").is_some());
+    assert!(body.get("analyzer_age_ms").is_some());
 }
 
 #[tokio::test]

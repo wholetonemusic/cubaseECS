@@ -150,3 +150,41 @@ async fn send_set_rejects_bad_param_and_range() {
         -32602
     );
 }
+
+#[tokio::test]
+async fn analyzer_get_features_mock_ok() {
+    // テスト時は MIDI_MODE 未設定 → mock合成値。
+    let d = Dispatcher::mock();
+    let req = json!({"jsonrpc":"2.0","method":"analyzer.get_features","params":{},"id":21});
+    let resp = handle_rpc(req, &d).await.unwrap();
+    let f = &resp["result"];
+    assert_eq!(f["mode"], "mock");
+    assert_eq!(f["stale"], false);
+    assert!(f["rms"].is_number());
+    assert!(f["bands"]["low"].is_number());
+    assert!(f["bands"]["high"].is_number());
+    assert!(f["transient"].is_number());
+    assert!(f["stereo_width"].is_number());
+    assert!(f["timestamp"].is_number());
+    assert_eq!(resp["id"], 21);
+}
+
+#[tokio::test]
+async fn analyzer_get_features_rejects_non_object_params() {
+    let d = Dispatcher::mock();
+    let req = json!({"jsonrpc":"2.0","method":"analyzer.get_features","params":[1,2],"id":22});
+    let err = handle_rpc(req, &d).await.unwrap_err();
+    assert_eq!(err.1["error"]["code"], -32602);
+}
+
+#[test]
+fn analyzer_layout_matches_vst_side() {
+    // rust-analyzer/src/features.rs との同期保証 (手動同期。値の変更は両側へ)。
+    assert_eq!(cubase_ecs_api::analyzer::SHM_SIZE, 1024);
+    assert_eq!(
+        cubase_ecs_api::analyzer::SHM_OS_ID,
+        "CubaseECS_AudioFeatures_v1"
+    );
+    assert_eq!(cubase_ecs_api::analyzer::FEATURES_MAGIC, 0x4543_5346);
+    assert_eq!(cubase_ecs_api::analyzer::FEATURES_VERSION, 1);
+}

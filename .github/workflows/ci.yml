@@ -28,3 +28,15 @@ jobs:
 
       - name: check host-midi feature
         run: cargo check --features host-midi
+
+      - name: analyzer fmt
+        working-directory: rust-analyzer
+        run: cargo fmt --all -- --check
+
+      - name: analyzer clippy
+        working-directory: rust-analyzer
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: analyzer test
+        working-directory: rust-analyzer
+        run: cargo test

@@ -14,6 +14,7 @@ tracing = "=0.1.40"
 tracing-subscriber = { version = "=0.3.18", features = ["env-filter"] }
 tower-http = { version = "=0.5.2", features = ["cors", "trace", "limit"] }
 time = "=0.3.36"
+shared_memory = "=0.12.4"
 midir = { version = "0.9", optional = true }
 
 [features]
