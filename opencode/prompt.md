@@ -60,6 +60,8 @@
 注意:
 - 定番の値から入りたい場合は opencode/reference/index.md を見ること
   (例: ボーカル前面化は vocal-main.md)。詳細はreference側にあり、このpromptは肥大させない
+- Cubaseの機能仕様を確認したい場合は docs/manual/README.md → docs/manual/cubase-artist15-manual/index.md で
+  該当章(chXX-*.md)を参照すること(ローカル参照用、PDF原典が正)。MIDI Remote起点は ch41-0855.md
 - SysExは7bit-ASCII JSONのみ対応のため、日本語トラック名は英字表記に正規化すること
   (例: ボーカル→Vocal、ギター→Guitar、ドラム→Drums)
 - 不明点があっても自然言語のまま返さず、必ずJSON-RPCに変換して返すこと

@@ -39,6 +39,14 @@ FX creation + send destination assignment is one-time manual setup in Cubase
 | `vocal-plate.md` | vocal gloss / sustained ballad notes / share plate with snare |
 | `vocal-long.md` | ballad big chorus / lush vocal tail / hidden hall not enough |
 | `vocal-tempo.md` | vocal phrase gaps / tempo repeats on vocal / delay without wash |
+| `comp-kick.md` | kick comp finish / natural fat tight drive / beater vs tail |
+| `comp-snare.md` | snare comp snap / body balance / rimshot punch |
+| `comp-drumbus.md` | kit-bus comp glue / tempo-linked release / gentle bus |
+| `comp-bass.md` | bass comp evenness / finger slap synth / attack vs body |
+| `comp-guitar.md` | guitar comp stability / cutting lead arp / electric vs acoustic |
+| `comp-keys.md` | keys comp bloom / piano rhodes electric-piano / release tone |
+| `comp-vocal.md` | vocal comp steadiness / main double chorus / genre base |
+| `comp-2mix.md` | two-mix comp glue / shallow master bus / loudness vs depth |
 | `analyzer-guide.md` | live spectrum/level readings available / which-eq-first decisions (read-only, no preset JSON) |
 
 ## Presets
@@ -72,6 +80,14 @@ FX creation + send destination assignment is one-time manual setup in Cubase
 | `../presets/vocal-plate.json` | `vocal-plate.md` as send-ordered RPC calls (id assigned at send time) |
 | `../presets/vocal-long.json` | `vocal-long.md` as send-ordered RPC calls (id assigned at send time) |
 | `../presets/vocal-tempo.json` | `vocal-tempo.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/comp-kick.json` | `comp-kick.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/comp-snare.json` | `comp-snare.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/comp-drumbus.json` | `comp-drumbus.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/comp-bass.json` | `comp-bass.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/comp-guitar.json` | `comp-guitar.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/comp-keys.json` | `comp-keys.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/comp-vocal.json` | `comp-vocal.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/comp-2mix.json` | `comp-2mix.md` as send-ordered RPC calls (id assigned at send time) |
 
 ## Adding a new preset (repeat per topic)
 

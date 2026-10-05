@@ -20,3 +20,8 @@ Thumbs.db
 
 # Session handoff (local only, not shared)
 docs/handoff.md
+
+# Cubase manual (copyrighted, local only - README is committed)
+docs/manual/cubase-artist15-manual/
+docs/manual/*.pdf
+docs/manual/cubase-artist15-operation-manual-ja.md
