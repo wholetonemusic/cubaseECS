@@ -47,6 +47,23 @@ FX creation + send destination assignment is one-time manual setup in Cubase
 | `comp-keys.md` | keys comp bloom / piano rhodes electric-piano / release tone |
 | `comp-vocal.md` | vocal comp steadiness / main double chorus / genre base |
 | `comp-2mix.md` | two-mix comp glue / shallow master bus / loudness vs depth |
+| `eq-kick.md` | kick EQ study / weight vs box vs beater / kick-bass separation |
+| `eq-snare.md` | snare EQ study / body vs box vs snap / extreme boost caution |
+| `eq-hihat.md` | hihat EQ study / high cut defines tick / air without harshness |
+| `eq-cymbal.md` | cymbal EQ study / shimmer sits in mix / cut-to-lift ride |
+| `eq-tom.md` | tom EQ study / resonance per size / shared attack point |
+| `eq-percussion.md` | percussion EQ study / shaker conga tambourine roles |
+| `eq-rhythm.md` | rhythm-machine EQ study / tight weight / lofi vs hifi hats |
+| `eq-ebass.md` | electric-bass EQ study / pillar vs mud vs attack / genre turns |
+| `eq-eguitar.md` | electric-guitar EQ study / body axis edge / clean to metal |
+| `eq-aguitar.md` | acoustic-guitar EQ study / body attack shimmer / strum vs arp |
+| `eq-piano.md` | piano EQ study / warmth without mud / hammer and overtones |
+| `eq-keys.md` | keyboard EQ study / ep organ synth roles / lane separation |
+| `eq-strings.md` | strings EQ study / ensemble weight vs violin edge |
+| `eq-brass.md` | brass EQ study / sax warmth vs trumpet bell / harmonic care |
+| `eq-vocal.md` | vocal EQ study / mud cut plus presence / filter voices |
+| `eq-effects.md` | effects EQ study / pre-EQ into modulation / reverb and delay tuck |
+| `eq-2mix.md` | two-mix EQ study / gentle groove lift / tight lows and depth |
 | `analyzer-guide.md` | live spectrum/level readings available / which-eq-first decisions (read-only, no preset JSON) |
 
 ## Presets
@@ -88,6 +105,23 @@ FX creation + send destination assignment is one-time manual setup in Cubase
 | `../presets/comp-keys.json` | `comp-keys.md` as send-ordered RPC calls (id assigned at send time) |
 | `../presets/comp-vocal.json` | `comp-vocal.md` as send-ordered RPC calls (id assigned at send time) |
 | `../presets/comp-2mix.json` | `comp-2mix.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-kick.json` | `eq-kick.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-snare.json` | `eq-snare.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-hihat.json` | `eq-hihat.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-cymbal.json` | `eq-cymbal.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-tom.json` | `eq-tom.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-percussion.json` | `eq-percussion.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-rhythm.json` | `eq-rhythm.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-ebass.json` | `eq-ebass.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-eguitar.json` | `eq-eguitar.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-aguitar.json` | `eq-aguitar.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-piano.json` | `eq-piano.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-keys.json` | `eq-keys.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-strings.json` | `eq-strings.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-brass.json` | `eq-brass.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-vocal.json` | `eq-vocal.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-effects.json` | `eq-effects.md` as send-ordered RPC calls (id assigned at send time) |
+| `../presets/eq-2mix.json` | `eq-2mix.md` as send-ordered RPC calls (id assigned at send time) |
 
 ## Adding a new preset (repeat per topic)
 
